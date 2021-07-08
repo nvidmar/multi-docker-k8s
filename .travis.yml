@@ -1,0 +1,36 @@
+sudo: required
+language: generic 
+services:
+  - docker
+
+before_install:
+  - docker build -f ./client/Dockerfile.dev -t nvidmar/multi-docker ./client
+
+script:
+  - docker run -e CI=true nvidmar/multi-docker npm run test
+
+after_success:
+  - docker build -t nvidmar/multi-docker-client ./client
+  - docker build -t nvidmar/multi-docker-nginx ./nginx
+  - docker build -t nvidmar/multi-docker-server ./server
+  - docker build -t nvidmar/multi-docker-worker ./worker
+
+  # Login to docker hub -> in travis project set env variables DOCKER_ID nvidmar
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_ID" --password-stdin
+  #Take those images and push them to docker hub
+  - docker push nvidmar/multi-docker-client
+  - docker push nvidmar/multi-docker-nginx
+  - docker push nvidmar/multi-docker-server
+  - docker push nvidmar/multi-docker-worker
+
+  deploy:
+    provider: elasticbeanstalk
+    region: 'us-east-1'
+    app: 'multi-docker'
+    env: 'MultiDocker-env'
+    bucket_name: 'elasticbeanstalk-us-east-1-923445559289'
+    bucket_path: 'docker-multi'
+    on:
+      branch: master
+    access_key_id: $AWS_ACCESS_KEY
+    secret_access_key: $AWS_SECRET_KEY
